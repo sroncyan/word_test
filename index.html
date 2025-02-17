@@ -1,0 +1,187 @@
+import React, { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+const VocabularyApp = () => {
+  const [words, setWords] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [knownCount, setKnownCount] = useState(0);
+  const [unknownCount, setUnknownCount] = useState(0);
+  const [mistakenWords, setMistakenWords] = useState([]);
+  const [isTestStarted, setIsTestStarted] = useState(false);
+  const [isTestEnded, setIsTestEnded] = useState(false);
+  const [currentWord, setCurrentWord] = useState(null);
+  const fileInputRef = useRef(null);
+  
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, {
+        type: 'array',
+        cellDates: true,
+        cellStyles: true
+      });
+      
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(firstSheet);
+      
+      if (!data.length || !data[0].hasOwnProperty('English') || !data[0].hasOwnProperty('Japanese')) {
+        alert('ExcelファイルにはEnglishとJapanese列が必要です。');
+        return;
+      }
+      
+      setWords(data.map(row => ({
+        ...row,
+        Count: row.Count || 0
+      })));
+      
+      alert('ファイルが正常に読み込まれました！');
+    } catch (error) {
+      alert('ファイルの読み込みに失敗しました: ' + error.message);
+    }
+  };
+
+  const startTest = () => {
+    setIsTestStarted(true);
+    setCurrentIndex(0);
+    setKnownCount(0);
+    setUnknownCount(0);
+    setMistakenWords([]);
+    setIsTestEnded(false);
+    setCurrentWord(words[0]);
+  };
+
+  const handleKnowWord = () => {
+    setKnownCount(prev => prev + 1);
+    showNextWord();
+  };
+
+  const handleDontKnowWord = () => {
+    setUnknownCount(prev => prev + 1);
+    setMistakenWords(prev => [...prev, currentWord]);
+    
+    // Update count for the word
+    setWords(prev => prev.map((word, idx) => 
+      idx === currentIndex 
+        ? { ...word, Count: (word.Count || 0) + 1 }
+        : word
+    ));
+    
+    showNextWord();
+  };
+
+  const showNextWord = () => {
+    const nextIndex = currentIndex + 1;
+    setCurrentIndex(nextIndex);
+    
+    if (nextIndex < words.length) {
+      setCurrentWord(words[nextIndex]);
+    } else {
+      endTest();
+    }
+  };
+
+  const endTest = () => {
+    setIsTestStarted(false);
+    setIsTestEnded(true);
+    setCurrentWord(null);
+    
+    // Save updated counts back to Excel file
+    const newWorkbook = XLSX.utils.book_new();
+    const newSheet = XLSX.utils.json_to_sheet(words);
+    XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Words");
+    
+    // Generate and download the updated Excel file
+    XLSX.writeFile(newWorkbook, "updated_vocabulary.xlsx");
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-2xl">
+      <Card className="mb-8">
+        <CardContent className="pt-6">
+          <h1 className="text-2xl font-bold text-center mb-6">単語テストアプリ</h1>
+          
+          <div className="space-y-4">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".xlsx"
+              className="hidden"
+            />
+            
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full"
+              disabled={isTestStarted}
+            >
+              Excelファイルを選択
+            </Button>
+
+            {words.length > 0 && !isTestStarted && !isTestEnded && (
+              <Button 
+                onClick={startTest}
+                className="w-full"
+              >
+                テスト開始
+              </Button>
+            )}
+
+            {currentWord && (
+              <div className="text-center py-8">
+                <h2 className="text-2xl font-bold mb-6">{currentWord.English}</h2>
+                <div className="flex justify-center gap-4">
+                  <Button 
+                    onClick={handleKnowWord}
+                    className="w-32"
+                  >
+                    分かる
+                  </Button>
+                  <Button 
+                    onClick={handleDontKnowWord}
+                    className="w-32"
+                    variant="destructive"
+                  >
+                    分からない
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {isTestEnded && (
+              <Alert>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p>結果:</p>
+                    <p>分かった単語の数: {knownCount}/{words.length}</p>
+                    <p>分からなかった単語の数: {unknownCount}/{words.length}</p>
+                    
+                    {mistakenWords.length > 0 && (
+                      <div>
+                        <p className="font-bold mt-4 mb-2">間違えた単語とその意味:</p>
+                        <ul className="list-disc pl-4">
+                          {mistakenWords.map((word, index) => (
+                            <li key={index}>
+                              {word.English}: {word.Japanese}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default VocabularyApp;

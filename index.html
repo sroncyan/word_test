@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>単語テストアプリ</title>
-    <!-- XLSX.js のインポート -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
@@ -78,15 +77,19 @@
             margin-top: 10px;
             padding-left: 20px;
         }
+        .loading {
+            text-align: center;
+            color: #666;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
     <div class="card">
         <h1 class="title">単語テストアプリ</h1>
         
-        <input type="file" id="fileInput" accept=".xlsx" class="hidden">
-        <button id="selectFileButton" class="button">Excelファイルを選択</button>
-        <button id="startButton" class="button hidden">テスト開始</button>
+        <div id="loading" class="loading">データを読み込み中...</div>
+        <button id="startButton" class="button" disabled>テスト開始</button>
 
         <div id="wordDisplay" class="word-display hidden">
             <div id="currentWord" class="word"></div>
@@ -109,9 +112,11 @@
         let mistakenWords = [];
         let isTestStarted = false;
 
+        // GitHubの生データURL
+        const EXCEL_URL = 'https://raw.githubusercontent.com/sroncyan/word_test/main/words.xlsx';
+
         // DOM要素の取得
-        const fileInput = document.getElementById('fileInput');
-        const selectFileButton = document.getElementById('selectFileButton');
+        const loadingElement = document.getElementById('loading');
         const startButton = document.getElementById('startButton');
         const wordDisplay = document.getElementById('wordDisplay');
         const currentWordElement = document.getElementById('currentWord');
@@ -120,18 +125,11 @@
         const result = document.getElementById('result');
         const resultContent = document.getElementById('resultContent');
 
-        // ファイル選択ボタンのイベントリスナー
-        selectFileButton.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        // ファイル読み込み処理
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
+        // 初期データの読み込み
+        async function loadInitialData() {
             try {
-                const arrayBuffer = await file.arrayBuffer();
+                const response = await fetch(EXCEL_URL);
+                const arrayBuffer = await response.arrayBuffer();
                 const workbook = XLSX.read(arrayBuffer, {
                     type: 'array',
                     cellDates: true,
@@ -151,12 +149,16 @@
                     Count: row.Count || 0
                 }));
                 
-                alert('ファイルが正常に読み込まれました！');
-                startButton.classList.remove('hidden');
+                loadingElement.classList.add('hidden');
+                startButton.disabled = false;
             } catch (error) {
-                alert('ファイルの読み込みに失敗しました: ' + error.message);
+                loadingElement.textContent = '単語データの読み込みに失敗しました: ' + error.message;
+                startButton.disabled = true;
             }
-        });
+        }
+
+        // ページ読み込み時にデータを取得
+        window.addEventListener('load', loadInitialData);
 
         // テスト開始
         startButton.addEventListener('click', () => {
@@ -167,9 +169,11 @@
             mistakenWords = [];
             
             startButton.classList.add('hidden');
-            selectFileButton.disabled = true;
             wordDisplay.classList.remove('hidden');
             result.classList.add('hidden');
+            
+            // 単語をランダムに並び替え
+            words = words.sort(() => Math.random() - 0.5);
             
             showNextWord();
         });
@@ -203,7 +207,7 @@
         function endTest() {
             isTestStarted = false;
             wordDisplay.classList.add('hidden');
-            selectFileButton.disabled = false;
+            startButton.classList.remove('hidden');
             
             // 結果の表示
             let resultHTML = `

@@ -82,6 +82,26 @@
             color: #666;
             margin: 20px 0;
         }
+        .download-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .download-button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .download-yes {
+            background-color: #4caf50;
+        }
+        .download-no {
+            background-color: #f44336;
+        }
     </style>
 </head>
 <body>
@@ -101,6 +121,13 @@
 
         <div id="result" class="result hidden">
             <div id="resultContent"></div>
+            <div id="downloadConfirm" class="hidden">
+                <p class="text-center">間違えた単語をExcelファイルとしてダウンロードしますか？</p>
+                <div class="download-buttons">
+                    <button onclick="handleDownload(true)" class="download-button download-yes">はい</button>
+                    <button onclick="handleDownload(false)" class="download-button download-no">いいえ</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -124,6 +151,7 @@
         const dontKnowButton = document.getElementById('dontKnowButton');
         const result = document.getElementById('result');
         const resultContent = document.getElementById('resultContent');
+        const downloadConfirm = document.getElementById('downloadConfirm');
 
         // 初期データの読み込み
         async function loadInitialData() {
@@ -171,9 +199,10 @@
             startButton.classList.add('hidden');
             wordDisplay.classList.remove('hidden');
             result.classList.add('hidden');
+            downloadConfirm.classList.add('hidden');
             
             // 単語をランダムに並び替え
-            words = words.sort(() => Math.random() - 0.5);
+            //words = words.sort(() => Math.random() - 0.5);
             
             showNextWord();
         });
@@ -181,6 +210,7 @@
         // 「分かる」ボタンの処理
         knowButton.addEventListener('click', () => {
             knownCount++;
+            currentIndex++;
             showNextWord();
         });
 
@@ -190,6 +220,7 @@
             unknownCount++;
             currentWord.Count = (currentWord.Count || 0) + 1;
             mistakenWords.push(currentWord);
+            currentIndex++;
             showNextWord();
         });
 
@@ -197,10 +228,20 @@
         function showNextWord() {
             if (currentIndex < words.length) {
                 currentWordElement.textContent = words[currentIndex].English;
-                currentIndex++;
             } else {
                 endTest();
             }
+        }
+
+        // ダウンロード処理
+        function handleDownload(shouldDownload) {
+            if (shouldDownload && mistakenWords.length > 0) {
+                const newWorkbook = XLSX.utils.book_new();
+                const newSheet = XLSX.utils.json_to_sheet(mistakenWords);
+                XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Words");
+                XLSX.writeFile(newWorkbook, "vocabulary_mistakes.xlsx");
+            }
+            downloadConfirm.classList.add('hidden');
         }
 
         // テスト終了
@@ -230,11 +271,10 @@
             resultContent.innerHTML = resultHTML;
             result.classList.remove('hidden');
             
-            // 更新されたExcelファイルの生成とダウンロード
-            const newWorkbook = XLSX.utils.book_new();
-            const newSheet = XLSX.utils.json_to_sheet(words);
-            XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Words");
-            XLSX.writeFile(newWorkbook, "updated_vocabulary.xlsx");
+            // ダウンロード確認を表示
+            if (mistakenWords.length > 0) {
+                downloadConfirm.classList.remove('hidden');
+            }
         }
     </script>
 </body>
